@@ -885,6 +885,43 @@ int quick_check(long long *bbox, int z, int detail, long long buffer) {
 	return 2;
 }
 
+int check_interior(long long *bbox, const drawvec & geom) {
+
+	size_t size = geom.size();
+  
+  if(size != 4)
+    return 0;
+  
+  long long gbbox[4];
+  
+	gbbox[0] = LLONG_MAX;
+	gbbox[1] = LLONG_MAX;
+	gbbox[2] = LLONG_MIN;
+	gbbox[3] = LLONG_MIN;
+
+  for (size_t i = 0; i < size; i++) {
+    if(geom[i].x < gbbox[0])
+      gbbox[0] = geom[i].x;
+    if(geom[i].y < gbbox[1])
+      gbbox[1] = geom[i].y;
+    if(geom[i].x > gbbox[2])
+      gbbox[2] = geom[i].x;
+    if(geom[i].y > gbbox[3])
+      gbbox[3] = geom[i].y;
+	}
+
+  if(gbbox[0] != bbox[0])
+    return 0;
+  if(gbbox[1] != bbox[1])
+    return 0;
+  if(gbbox[2] != bbox[2])
+    return 0;
+  if(gbbox[3] != bbox[3])
+    return 0;
+  
+	return 1;
+}
+
 bool point_within_tile(long long x, long long y, int z, int detail, long long buffer) {
 	// No adjustment for buffer, because the point must be
 	// strictly within the tile to appear exactly once

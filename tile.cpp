@@ -1132,6 +1132,13 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 				}
 			}
 
+      if(prevent[P_INTERIOR]) {
+        int interior = check_interior(bbox, geom);
+        if (interior == 1) {
+          continue;
+        }
+      }
+      
 			// Can't accept the quick check if guaranteeing no duplication, since the
 			// overlap might have been in the buffer.
 			if (quick != 1 || prevent[P_DUPLICATION]) {
