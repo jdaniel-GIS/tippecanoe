@@ -1482,6 +1482,7 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 			oprogress = progress;
 		}
 
+		printf("writing tile %d,%d,%d\n", z, tx, ty);
 		if (totalsize > 0 && tile.layers.size() > 0) {
 			if (totalsize > 200000 && !prevent[P_FEATURE_LIMIT]) {
 				fprintf(stderr, "tile %d/%u/%u has %lld features, >200000    \n", z, tx, ty, totalsize);
