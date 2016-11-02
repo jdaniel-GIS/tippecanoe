@@ -894,15 +894,15 @@ int check_interior(long long *bbox, int z, long long buffer, const drawvec & geo
 
 	size_t size = geom.size();
   
-	printf("min = %lld, area = %lld\n", min, area);
+	//printf("min = %lld, area = %lld\n", min, area);
 	if(size == 5) {
-                printf("bbox[%lld, %lld, %lld, %lld]\n", bbox[0], bbox[1], bbox[2], bbox[3]);
-		std::for_each(
+		//printf("bbox[%lld, %lld, %lld, %lld]\n", bbox[0], bbox[1], bbox[2], bbox[3]);
+		/* std::for_each(
 			geom.begin(), 
 			geom.end(), 
 			[](const draw &d){ 
 			printf("x,y,op,necessary = %lld,%lld,%d,%d\n", d.x, d.y, d.op, d.necessary);
-			});	
+			});	*/
 		return 1;
 	}
   
