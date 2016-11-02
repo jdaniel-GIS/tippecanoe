@@ -1132,13 +1132,8 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 				}
 			}
 
-      if(prevent[P_INTERIOR]) {
-        int interior = check_interior(bbox, geom);
-        if (interior == 1) {
-          continue;
-        }
-      }
-      
+			//printf(">>>>>>>>>>>>>>>\n");
+			//printf("z,x,y %d, %u, %u geometry size %ld\n", z, tx, ty, geom.size());
 			// Can't accept the quick check if guaranteeing no duplication, since the
 			// overlap might have been in the buffer.
 			if (quick != 1 || prevent[P_DUPLICATION]) {
@@ -1179,6 +1174,16 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 					geom = clipped;
 				}
 			}
+
+			if(prevent[P_INTERIOR]) {
+				int interior = check_interior(bbox, z, buffer, geom);
+				if (interior == 1) {
+					continue;
+				}
+			} 
+      
+			//printf("clipped geometry size %ld\n", geom.size());
+			//printf("<<<<<<<<<<<<<\n");
 
 			if (geom.size() > 0) {
 				unclipped_features++;

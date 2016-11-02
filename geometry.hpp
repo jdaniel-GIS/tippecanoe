@@ -64,7 +64,7 @@ drawvec reduce_tiny_poly(drawvec &geom, int z, int detail, bool *reduced, double
 drawvec clip_lines(drawvec &geom, int z, int detail, long long buffer);
 bool point_within_tile(long long x, long long y, int z, int detail, long long buffer);
 int quick_check(long long *bbox, int z, int detail, long long buffer);
-int check_interior(long long *bbox, const drawvec & geom);
+int check_interior(long long *bbox, int z, long long buffer, const drawvec & geom);
 drawvec simplify_lines(drawvec &geom, int z, int detail, bool mark_tile_bounds, double simplification, bool already_marked);
 drawvec reorder_lines(drawvec &geom);
 drawvec fix_polygon(drawvec &geom);

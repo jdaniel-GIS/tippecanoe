@@ -885,41 +885,28 @@ int quick_check(long long *bbox, int z, int detail, long long buffer) {
 	return 2;
 }
 
-int check_interior(long long *bbox, const drawvec & geom) {
+int check_interior(long long *bbox, int z, long long buffer, const drawvec & geom) {
+	long long min = 0;
+	long long area = 1LL << (32 - z);
+
+	min -= buffer * area / 256;
+	area += buffer * area / 256;
 
 	size_t size = geom.size();
   
-  if(size != 4)
-    return 0;
-  
-  long long gbbox[4];
-  
-	gbbox[0] = LLONG_MAX;
-	gbbox[1] = LLONG_MAX;
-	gbbox[2] = LLONG_MIN;
-	gbbox[3] = LLONG_MIN;
-
-  for (size_t i = 0; i < size; i++) {
-    if(geom[i].x < gbbox[0])
-      gbbox[0] = geom[i].x;
-    if(geom[i].y < gbbox[1])
-      gbbox[1] = geom[i].y;
-    if(geom[i].x > gbbox[2])
-      gbbox[2] = geom[i].x;
-    if(geom[i].y > gbbox[3])
-      gbbox[3] = geom[i].y;
+	printf("min = %lld, area = %lld\n", min, area);
+	if(size == 5) {
+                printf("bbox[%lld, %lld, %lld, %lld]\n", bbox[0], bbox[1], bbox[2], bbox[3]);
+		std::for_each(
+			geom.begin(), 
+			geom.end(), 
+			[](const draw &d){ 
+			printf("x,y,op,necessary = %lld,%lld,%d,%d\n", d.x, d.y, d.op, d.necessary);
+			});	
+		return 1;
 	}
-
-  if(gbbox[0] != bbox[0])
-    return 0;
-  if(gbbox[1] != bbox[1])
-    return 0;
-  if(gbbox[2] != bbox[2])
-    return 0;
-  if(gbbox[3] != bbox[3])
-    return 0;
   
-	return 1;
+	return 0;
 }
 
 bool point_within_tile(long long x, long long y, int z, int detail, long long buffer) {
