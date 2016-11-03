@@ -1112,7 +1112,7 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 			}
 
 			if(prevent[P_INTERIOR]) {
-        bool generate_tile = false;
+        bool skip = false;
         
         if (pthread_mutex_lock(&interior_lock) != 0) {
           perror("pthread_mutex_lock");
@@ -1123,7 +1123,7 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
           std::tuple<int, unsigned, unsigned> tup = std::make_tuple(z, tx >> parentz, ty >> parentz);
           
           if(interior_tiles.find(tup) != interior_tiles.end())
-            generate_tile = false;
+            skip = true;
         }
         
         if (pthread_mutex_unlock(&interior_lock) != 0) {
@@ -1131,7 +1131,7 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
           exit(EXIT_FAILURE);
         }
         
-        if(!generate_tile)
+        if(skip)
           continue;
       }
       
