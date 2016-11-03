@@ -3,6 +3,8 @@
 #include <string>
 #include <stack>
 #include <vector>
+#include <set>
+#include <tuple>
 #include <map>
 #include <set>
 #include <algorithm>
@@ -37,6 +39,9 @@
 
 pthread_mutex_t db_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t var_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t interior_lock = PTHREAD_MUTEX_INITIALIZER;
+
+std::set<std::tuple<int, unsigned, unsigned>> interior_tiles;
 
 std::vector<mvt_geometry> to_feature(drawvec &geom) {
 	std::vector<mvt_geometry> out;
@@ -1178,6 +1183,20 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 			if(prevent[P_INTERIOR]) {
 				int interior = check_interior(bbox, z, buffer, geom);
 				if (interior == 1) {
+          if (pthread_mutex_lock(&interior_lock) != 0) {
+            perror("pthread_mutex_lock");
+            exit(EXIT_FAILURE);
+          }
+
+          std::tuple<int, unsigned, unsigned> tup = std::make_tuple(z, tx, ty);
+            
+          interior_tiles.insert(tup);
+          
+          if (pthread_mutex_unlock(&interior_lock) != 0) {
+            perror("pthread_mutex_unlock");
+            exit(EXIT_FAILURE);
+          }
+
 					continue;
 				}
 			} 
@@ -1607,15 +1626,38 @@ void *run_thread(void *vargs) {
 			deserialize_uint_io(geom, &x, &geompos);
 			deserialize_uint_io(geom, &y, &geompos);
 
-			// fprintf(stderr, "%d/%u/%u\n", z, x, y);
+      long long len = 0;
+      bool generate_tile = true;
+      
+			if(prevent[P_INTERIOR]) {
+        // fprintf(stderr, "%d/%u/%u\n", z, x, y);
+        if (pthread_mutex_lock(&interior_lock) != 0) {
+          perror("pthread_mutex_lock");
+          exit(EXIT_FAILURE);
+        }
 
-			long long len = write_tile(geom, &geompos, arg->metabase, arg->stringpool, z, x, y, z == arg->maxzoom ? arg->full_detail : arg->low_detail, arg->min_detail, arg->basezoom, arg->outdb, arg->droprate, arg->buffer, arg->fname, arg->geomfile, arg->minzoom, arg->maxzoom, arg->todo, arg->along, geompos, arg->gamma, arg->child_shards, arg->meta_off, arg->pool_off, arg->initial_x, arg->initial_y, arg->running, arg->simplification, arg->layermaps, arg->layer_unmaps);
+        for(int parentz = 1; parentz < z; ++parentz) {
+          std::tuple<int, unsigned, unsigned> tup = std::make_tuple(z, x >> parentz, y >> parentz);
+          
+          if(interior_tiles.find(tup) != interior_tiles.end())
+            generate_tile = false;
+        }
+        
+        if (pthread_mutex_unlock(&interior_lock) != 0) {
+          perror("pthread_mutex_unlock");
+          exit(EXIT_FAILURE);
+        }
+      }
+      
+      if(generate_tile) {
+        len = write_tile(geom, &geompos, arg->metabase, arg->stringpool, z, x, y, z == arg->maxzoom ? arg->full_detail : arg->low_detail, arg->min_detail, arg->basezoom, arg->outdb, arg->droprate, arg->buffer, arg->fname, arg->geomfile, arg->minzoom, arg->maxzoom, arg->todo, arg->along, geompos, arg->gamma, arg->child_shards, arg->meta_off, arg->pool_off, arg->initial_x, arg->initial_y, arg->running, arg->simplification, arg->layermaps, arg->layer_unmaps);
 
-			if (len < 0) {
-				int *err = &arg->err;
-				*err = z - 1;
-				return err;
-			}
+        if (len < 0) {
+          int *err = &arg->err;
+          *err = z - 1;
+          return err;
+        }
+			} 
 
 			if (pthread_mutex_lock(&var_lock) != 0) {
 				perror("pthread_mutex_lock");
