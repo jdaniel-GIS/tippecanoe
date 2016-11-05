@@ -49,6 +49,12 @@ sqlite3 *mbtiles_open(char *dbname, char **argv, int forcetable) {
 			exit(EXIT_FAILURE);
 		}
 	}
+	if (sqlite3_exec(outdb, "CREATE TABLE interior_tiles (zoom_level integer, tile_column integer, tile_row integer);", NULL, NULL, &err) != SQLITE_OK) {
+		fprintf(stderr, "%s: create interior_tiles table: %s\n", argv[0], err);
+		if (!forcetable) {
+			exit(EXIT_FAILURE);
+		}
+	}
 	if (sqlite3_exec(outdb, "create unique index name on metadata (name);", NULL, NULL, &err) != SQLITE_OK) {
 		fprintf(stderr, "%s: index metadata: %s\n", argv[0], err);
 		if (!forcetable) {
@@ -77,6 +83,26 @@ void mbtiles_write_tile(sqlite3 *outdb, int z, int tx, int ty, const char *data,
 	sqlite3_bind_int(stmt, 2, tx);
 	sqlite3_bind_int(stmt, 3, (1 << z) - 1 - ty);
 	sqlite3_bind_blob(stmt, 4, data, size, NULL);
+
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		fprintf(stderr, "sqlite3 insert failed: %s\n", sqlite3_errmsg(outdb));
+	}
+	if (sqlite3_finalize(stmt) != SQLITE_OK) {
+		fprintf(stderr, "sqlite3 finalize failed: %s\n", sqlite3_errmsg(outdb));
+	}
+}
+
+void mbtiles_write_interior_tile(sqlite3 *outdb, int z, int tx, int ty) {
+	sqlite3_stmt *stmt;
+	const char *query = "insert into interior_tiles (zoom_level, tile_column, tile_row) values (?, ?, ?)";
+	if (sqlite3_prepare_v2(outdb, query, -1, &stmt, NULL) != SQLITE_OK) {
+		fprintf(stderr, "sqlite3 insert prep failed\n");
+		exit(EXIT_FAILURE);
+	}
+
+	sqlite3_bind_int(stmt, 1, z);
+	sqlite3_bind_int(stmt, 2, tx);
+	sqlite3_bind_int(stmt, 3, (1 << z) - 1 - ty);
 
 	if (sqlite3_step(stmt) != SQLITE_DONE) {
 		fprintf(stderr, "sqlite3 insert failed: %s\n", sqlite3_errmsg(outdb));

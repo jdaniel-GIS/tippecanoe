@@ -1297,6 +1297,8 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 			}
 		}
 
+    bool interior_tile = false;
+    
 		if(prevent[P_INTERIOR]) {
 			int interior = check_interior(vertex_count, vertices);
 			if (interior == 1) {
@@ -1309,6 +1311,7 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 				std::tuple<int, unsigned, unsigned> tup = std::make_tuple(z, tx, ty);
             
 				interior_tiles.insert(tup);
+        interior_tile = true;
           
 				if (pthread_mutex_unlock(&interior_lock) != 0) {
 					perror("pthread_mutex_unlock");
@@ -1565,6 +1568,9 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 				}
 
 				mbtiles_write_tile(outdb, z, tx, ty, compressed.data(), compressed.size());
+
+        if(interior_tile)
+          mbtiles_write_interior_tile(outdb, z, tx, ty);
 
 				if (pthread_mutex_unlock(&db_lock) != 0) {
 					perror("pthread_mutex_unlock");
