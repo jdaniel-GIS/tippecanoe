@@ -968,6 +968,7 @@ void find_common_edges(std::vector<partial> &partials, int z, int line_detail, d
 }
 
 long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *stringpool, int z, unsigned tx, unsigned ty, int detail, int min_detail, int basezoom, sqlite3 *outdb, double droprate, int buffer, const char *fname, FILE **geomfile, int minzoom, int maxzoom, double todo, volatile long long *along, long long alongminus, double gamma, int child_shards, long long *meta_off, long long *pool_off, unsigned *initial_x, unsigned *initial_y, volatile int *running, double simplification, std::vector<std::map<std::string, layermap_entry>> *layermaps, std::vector<std::vector<std::string>> *layer_unmaps) {
+        //printf("Tile %d/%d/%d\n", z, tx, ty);
 	int line_detail;
 	double fraction = 1;
 
@@ -1031,6 +1032,9 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 			}
 			*geompos_in = og;
 		}
+
+                int vertex_count = 0;
+                drawvec vertices;
 
 		while (1) {
 			signed char t;
@@ -1111,30 +1115,6 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 				continue;
 			}
 
-			if(prevent[P_INTERIOR]) {
-        bool skip = false;
-        
-        if (pthread_mutex_lock(&interior_lock) != 0) {
-          perror("pthread_mutex_lock");
-          exit(EXIT_FAILURE);
-        }
-
-        for(int parentz = 1; parentz < z; ++parentz) {
-          std::tuple<int, unsigned, unsigned> tup = std::make_tuple(z, tx >> parentz, ty >> parentz);
-          
-          if(interior_tiles.find(tup) != interior_tiles.end())
-            skip = true;
-        }
-        
-        if (pthread_mutex_unlock(&interior_lock) != 0) {
-          perror("pthread_mutex_unlock");
-          exit(EXIT_FAILURE);
-        }
-        
-        if(skip)
-          continue;
-      }
-      
 			if (z == 0) {
 				if (bbox[0] < 0 || bbox[2] > 1LL << 32) {
 					// If the geometry extends off the edge of the world, concatenate on another copy
@@ -1161,10 +1141,35 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 				}
 			}
 
+			if(prevent[P_INTERIOR]) {
+				bool skip = false;
+       
+				if (pthread_mutex_lock(&interior_lock) != 0) {
+					perror("pthread_mutex_lock");
+					exit(EXIT_FAILURE);
+				}
+
+				std::tuple<int, unsigned, unsigned> tup = std::make_tuple(z - 1, tx >> 1, ty >> 1);
+         
+				if(interior_tiles.find(tup) != interior_tiles.end()) {
+					//printf("skip interior parent %d/%d/%d for %d/%d/%d\n", z - 1, tx >> 1, ty >> 1, z, tx, ty);
+					skip = true;
+				}
+       
+				if (pthread_mutex_unlock(&interior_lock) != 0) {
+					perror("pthread_mutex_unlock");
+					exit(EXIT_FAILURE);
+				}
+
+				if(skip)
+					continue;
+			}
+      
 			//printf(">>>>>>>>>>>>>>>\n");
 			//printf("z,x,y %d, %u, %u geometry size %ld\n", z, tx, ty, geom.size());
 			// Can't accept the quick check if guaranteeing no duplication, since the
 			// overlap might have been in the buffer.
+                        //printf("Clipping geom %d/%d/%d size %d\n", z, tx, ty, geom.size());
 			if (quick != 1 || prevent[P_DUPLICATION]) {
 				drawvec clipped;
 
@@ -1182,6 +1187,7 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 					clipped = clip_point(geom, z, line_detail, buffer);
 				}
 
+                                //printf("Clipped geom %d/%d/%d to size %d, type %d\n", z, tx, ty, geom.size(), t);
 				clipped = remove_noop(clipped, t, 0);
 
 				// Must clip at z0 even if we don't want clipping, to handle features
@@ -1204,32 +1210,15 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 				}
 			}
 
-			if(prevent[P_INTERIOR]) {
-				int interior = check_interior(bbox, z, buffer, geom);
-				if (interior == 1) {
-          if (pthread_mutex_lock(&interior_lock) != 0) {
-            perror("pthread_mutex_lock");
-            exit(EXIT_FAILURE);
-          }
-
-          std::tuple<int, unsigned, unsigned> tup = std::make_tuple(z, tx, ty);
-            
-          interior_tiles.insert(tup);
-          
-          if (pthread_mutex_unlock(&interior_lock) != 0) {
-            perror("pthread_mutex_unlock");
-            exit(EXIT_FAILURE);
-          }
-
-					continue;
-				}
-			} 
-      
 			//printf("clipped geometry size %ld\n", geom.size());
 			//printf("<<<<<<<<<<<<<\n");
 
 			if (geom.size() > 0) {
 				unclipped_features++;
+                                vertex_count += geom.size();
+
+				if((geom.size() == 5) && (vertex_count == 5))
+					std::copy(geom.begin(), geom.end(), std::back_inserter(vertices));
 			}
 
 			if (line_detail == detail && fraction == 1) { /* only write out the next zoom once, even if we retry */
@@ -1308,6 +1297,26 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 			}
 		}
 
+		if(prevent[P_INTERIOR]) {
+			int interior = check_interior(vertex_count, vertices);
+			if (interior == 1) {
+				if (pthread_mutex_lock(&interior_lock) != 0) {
+					perror("pthread_mutex_lock");
+					exit(EXIT_FAILURE);
+				}
+
+				//printf("Excluding interior tile %d/%d/%d\n", z, tx, ty);
+				std::tuple<int, unsigned, unsigned> tup = std::make_tuple(z, tx, ty);
+            
+				interior_tiles.insert(tup);
+          
+				if (pthread_mutex_unlock(&interior_lock) != 0) {
+					perror("pthread_mutex_unlock");
+					exit(EXIT_FAILURE);
+				}
+			}
+		} 
+      
 		if (additional[A_DETECT_SHARED_BORDERS]) {
 			find_common_edges(partials, z, line_detail, simplification, maxzoom);
 		}
@@ -1525,7 +1534,6 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 			oprogress = progress;
 		}
 
-		printf("writing tile %d,%d,%d\n", z, tx, ty);
 		if (totalsize > 0 && tile.layers.size() > 0) {
 			if (totalsize > 200000 && !prevent[P_FEATURE_LIMIT]) {
 				fprintf(stderr, "tile %d/%u/%u has %lld features, >200000    \n", z, tx, ty, totalsize);
@@ -1650,13 +1658,13 @@ void *run_thread(void *vargs) {
 			deserialize_uint_io(geom, &x, &geompos);
 			deserialize_uint_io(geom, &y, &geompos);
 
-      long long len = write_tile(geom, &geompos, arg->metabase, arg->stringpool, z, x, y, z == arg->maxzoom ? arg->full_detail : arg->low_detail, arg->min_detail, arg->basezoom, arg->outdb, arg->droprate, arg->buffer, arg->fname, arg->geomfile, arg->minzoom, arg->maxzoom, arg->todo, arg->along, geompos, arg->gamma, arg->child_shards, arg->meta_off, arg->pool_off, arg->initial_x, arg->initial_y, arg->running, arg->simplification, arg->layermaps, arg->layer_unmaps);
+			long long len = write_tile(geom, &geompos, arg->metabase, arg->stringpool, z, x, y, z == arg->maxzoom ? arg->full_detail : arg->low_detail, arg->min_detail, arg->basezoom, arg->outdb, arg->droprate, arg->buffer, arg->fname, arg->geomfile, arg->minzoom, arg->maxzoom, arg->todo, arg->along, geompos, arg->gamma, arg->child_shards, arg->meta_off, arg->pool_off, arg->initial_x, arg->initial_y, arg->running, arg->simplification, arg->layermaps, arg->layer_unmaps);
 
-      if (len < 0) {
-        int *err = &arg->err;
-        *err = z - 1;
-        return err;
-      }
+			if (len < 0) {
+				int *err = &arg->err;
+				*err = z - 1;
+				return err;
+			}
 
 			if (pthread_mutex_lock(&var_lock) != 0) {
 				perror("pthread_mutex_lock");

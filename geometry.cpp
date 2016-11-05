@@ -885,24 +885,8 @@ int quick_check(long long *bbox, int z, int detail, long long buffer) {
 	return 2;
 }
 
-int check_interior(long long *bbox, int z, long long buffer, const drawvec & geom) {
-	long long min = 0;
-	long long area = 1LL << (32 - z);
-
-	min -= buffer * area / 256;
-	area += buffer * area / 256;
-
-	size_t size = geom.size();
-  
-	//printf("min = %lld, area = %lld\n", min, area);
-	if(size == 5) {
-		//printf("bbox[%lld, %lld, %lld, %lld]\n", bbox[0], bbox[1], bbox[2], bbox[3]);
-		/* std::for_each(
-			geom.begin(), 
-			geom.end(), 
-			[](const draw &d){ 
-			printf("x,y,op,necessary = %lld,%lld,%d,%d\n", d.x, d.y, d.op, d.necessary);
-			});	*/
+int check_interior(int vertex_count, const drawvec & vertices) {
+	if(vertex_count == 5) {
 		return 1;
 	}
   
