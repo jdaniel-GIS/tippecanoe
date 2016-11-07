@@ -885,9 +885,39 @@ int quick_check(long long *bbox, int z, int detail, long long buffer) {
 	return 2;
 }
 
-int check_interior(int vertex_count, const drawvec & vertices) {
-	if(vertex_count == 5) {
-		return 1;
+/* Should an interior tile be skipped?
+   If skipping interior tiles, skip anything with a high zoom and only 5 vertices.  */
+int skip_interior(int z, long long x, long long y, int vertex_count, const drawvec & vertices) {
+
+	if((z < 16) && (vertex_count == 5)) {
+		long long bbox[] = {LLONG_MAX, LLONG_MAX, LLONG_MIN, LLONG_MIN};
+		// Look for any two vertices that are different in both x and y.
+		// If I find one of those, this can't be an interior node.
+		for(int i = 0; i < 4; ++i) {
+			draw v1 = vertices[i];
+			draw v2 = vertices[i + 1];
+
+			if((v1.x != v2.x) && (v1.y != v2.y))
+				return 0;
+
+			if(v1.x < bbox[0])
+				bbox[0] = v1.x;
+			if(v1.y < bbox[1])
+				bbox[1] = v1.y;
+			if(v1.x > bbox[2])
+				bbox[2] = v1.x;
+			if(v1.y > bbox[3])
+				bbox[3] = v1.y;
+		}
+      		
+		//long long zarea = 1LL << (32 - z);
+		//long long area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]);
+		long long dx = bbox[2] - bbox[0];
+		long long dy  = bbox[3] - bbox[1];
+
+		return (dx == dy);
+                //printf("skipping interior tile %d/%lld/%lld zarea %lld, area %lld dx %lld dy %lld\n", z, x, y, zarea, area, dx, dy);
+		//return 1;
 	}
   
 	return 0;

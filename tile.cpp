@@ -41,6 +41,7 @@ pthread_mutex_t db_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t var_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t interior_lock = PTHREAD_MUTEX_INITIALIZER;
 
+// Keep track of interior tiles. 
 std::set<std::tuple<int, unsigned, unsigned>> interior_tiles;
 
 std::vector<mvt_geometry> to_feature(drawvec &geom) {
@@ -1141,6 +1142,7 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 				}
 			}
 
+			/* If I am preventing interior tiles, then see if an ancestor is on the skip list. */
 			if(prevent[P_INTERIOR]) {
 				bool skip = false;
        
@@ -1149,6 +1151,7 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 					exit(EXIT_FAILURE);
 				}
 
+				// I only need to check my immediate parent.
 				std::tuple<int, unsigned, unsigned> tup = std::make_tuple(z - 1, tx >> 1, ty >> 1);
          
 				if(interior_tiles.find(tup) != interior_tiles.end()) {
@@ -1297,11 +1300,12 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 			}
 		}
 
-    bool interior_tile = false;
+		bool interior_tile = false;
     
+                /* If I am preventing interior tiles, see if this tile is interior. */
 		if(prevent[P_INTERIOR]) {
-			int interior = check_interior(vertex_count, vertices);
-			if (interior == 1) {
+			int skip = skip_interior(z, tx, ty, vertex_count, vertices);
+			if (skip == 1) {
 				if (pthread_mutex_lock(&interior_lock) != 0) {
 					perror("pthread_mutex_lock");
 					exit(EXIT_FAILURE);
@@ -1310,8 +1314,10 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 				//printf("Excluding interior tile %d/%d/%d\n", z, tx, ty);
 				std::tuple<int, unsigned, unsigned> tup = std::make_tuple(z, tx, ty);
             
+                                /* This is an interior tile. I will emit this one, but any children
+                                   will be supressed. */
 				interior_tiles.insert(tup);
-        interior_tile = true;
+				interior_tile = true;
           
 				if (pthread_mutex_unlock(&interior_lock) != 0) {
 					perror("pthread_mutex_unlock");
@@ -1567,10 +1573,12 @@ long long write_tile(FILE *geoms, long long *geompos_in, char *metabase, char *s
 					exit(EXIT_FAILURE);
 				}
 
-				mbtiles_write_tile(outdb, z, tx, ty, compressed.data(), compressed.size());
-
-        if(interior_tile)
-          mbtiles_write_interior_tile(outdb, z, tx, ty);
+				// If this is an interior tile, also write the address to the interior tile list.
+				// If a client really wants filled in polygons, they may be able to query this list.
+				if(interior_tile)
+					mbtiles_write_interior_tile(outdb, z, tx, ty);
+				else
+					mbtiles_write_tile(outdb, z, tx, ty, compressed.data(), compressed.size());
 
 				if (pthread_mutex_unlock(&db_lock) != 0) {
 					perror("pthread_mutex_unlock");
